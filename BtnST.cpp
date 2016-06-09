@@ -163,10 +163,12 @@ void CButtonST::FreeResources(BOOL bCheckForNULL)
 		// Destroy bitmaps
 		if (m_csBitmaps[0].hBitmap)	::DeleteObject(m_csBitmaps[0].hBitmap);
 		if (m_csBitmaps[1].hBitmap)	::DeleteObject(m_csBitmaps[1].hBitmap);
+		if (m_csBitmaps[2].hBitmap)	::DeleteObject(m_csBitmaps[2].hBitmap);
 
 		// Destroy mask bitmaps
 		if (m_csBitmaps[0].hMask)	::DeleteObject(m_csBitmaps[0].hMask);
 		if (m_csBitmaps[1].hMask)	::DeleteObject(m_csBitmaps[1].hMask);
+		if (m_csBitmaps[2].hMask)	::DeleteObject(m_csBitmaps[2].hMask);
 	} // if
 
 	::ZeroMemory(&m_csIcons, sizeof(m_csIcons));
@@ -748,6 +750,9 @@ void CButtonST::DrawTheBitmap(CDC* pDC, BOOL bHasTitle, RECT* rpItem, CRect* rpC
 		byIndex = 0;
 	else
 		byIndex = (m_csBitmaps[1].hBitmap == NULL ? 0 : 1);
+	if (bIsDisabled && m_bShowDisabledBitmap){
+		byIndex=2;
+	}
 
 	CRect	rImage;
 	PrepareImageRect(bHasTitle, rpItem, rpCaption, bIsPressed, m_csBitmaps[byIndex].dwWidth, m_csBitmaps[byIndex].dwHeight, &rImage);
@@ -760,43 +765,9 @@ void CButtonST::DrawTheBitmap(CDC* pDC, BOOL bHasTitle, RECT* rpItem, CRect* rpC
 
 	hbmT = (HBITMAP)::SelectObject(hdcMem, m_csBitmaps[byIndex].hMask);
 
-	if (bIsDisabled && m_bShowDisabledBitmap)
-	{
-		HDC		hDC = NULL;
-		HBITMAP	hBitmap = NULL;
-
-		hDC = ::CreateCompatibleDC(pDC->m_hDC);
-		hBitmap = ::CreateCompatibleBitmap(pDC->m_hDC, m_csBitmaps[byIndex].dwWidth, m_csBitmaps[byIndex].dwHeight);
-		HBITMAP	hOldBmp2 = (HBITMAP)::SelectObject(hDC, hBitmap);
-
-		RECT	rRect;
-		rRect.left = 0;
-		rRect.top = 0;
-		rRect.right = rImage.right + 1;
-		rRect.bottom = rImage.bottom + 1;
-		::FillRect(hDC, &rRect, (HBRUSH)RGB(255, 255, 255));
-
-		COLORREF crOldColor = ::SetBkColor(hDC, RGB(255,255,255));
-
-		::BitBlt(hDC, 0, 0, m_csBitmaps[byIndex].dwWidth, m_csBitmaps[byIndex].dwHeight, hdcMem, 0, 0, SRCAND);
-		::BitBlt(hDC, 0, 0, m_csBitmaps[byIndex].dwWidth, m_csBitmaps[byIndex].dwHeight, hdcBmpMem, 0, 0, SRCPAINT);
-
-		::SetBkColor(hDC, crOldColor);
-		::SelectObject(hDC, hOldBmp2);
-		::DeleteDC(hDC);
-
-		pDC->DrawState(	CPoint(rImage.left/*+1*/, rImage.top), 
-						CSize(m_csBitmaps[byIndex].dwWidth, m_csBitmaps[byIndex].dwHeight), 
-						hBitmap, DST_BITMAP | DSS_DISABLED);
-
-		::DeleteObject(hBitmap);
-	} // if
-	else
-	{
-		::BitBlt(pDC->m_hDC, rImage.left, rImage.top, m_csBitmaps[byIndex].dwWidth, m_csBitmaps[byIndex].dwHeight, hdcMem, 0, 0, SRCAND);
-
-		::BitBlt(pDC->m_hDC, rImage.left, rImage.top, m_csBitmaps[byIndex].dwWidth, m_csBitmaps[byIndex].dwHeight, hdcBmpMem, 0, 0, SRCPAINT);
-	} // else
+	
+	::BitBlt(pDC->m_hDC, rImage.left, rImage.top, m_csBitmaps[byIndex].dwWidth, m_csBitmaps[byIndex].dwHeight, hdcMem, 0, 0, SRCAND);
+	::BitBlt(pDC->m_hDC, rImage.left, rImage.top, m_csBitmaps[byIndex].dwWidth, m_csBitmaps[byIndex].dwHeight, hdcBmpMem, 0, 0, SRCPAINT);
 
 	::SelectObject(hdcMem, hbmT);
 	::DeleteDC(hdcMem);
@@ -1481,6 +1452,11 @@ DWORD CButtonST::SetBitmaps(HBITMAP hBitmapIn, COLORREF crTransColorIn, HBITMAP 
 				break;
 		} // switch
 
+		// Create disabled bitmap
+		HBITMAP hBitmapDisable = CreateGrayscaleBitmap(hBitmapIn, m_csBitmaps[0].dwWidth, m_csBitmaps[0].dwHeight, crTransColorIn);
+		m_csBitmaps[2].hBitmap = hBitmapDisable;
+		COLORREF crTransColorDisable = crTransColorIn;
+
 		// Create mask for bitmap In
 		m_csBitmaps[0].hMask = CreateBitmapMask(hBitmapIn, m_csBitmaps[0].dwWidth, m_csBitmaps[0].dwHeight, crTransColorIn);
 		if (m_csBitmaps[0].hMask == NULL)
@@ -1510,6 +1486,27 @@ DWORD CButtonST::SetBitmaps(HBITMAP hBitmapIn, COLORREF crTransColorIn, HBITMAP 
 				FreeResources();
 				return BTNST_FAILEDMASK;
 			} // if
+		} // if
+
+		// Create Disabled bitmap data
+		m_csBitmaps[2].hBitmap = hBitmapDisable;
+		m_csBitmaps[2].crTransparent = crTransColorDisable;
+		// Get bitmap size
+		nRetValue = ::GetObject(hBitmapDisable, sizeof(csBitmapSize), &csBitmapSize);
+		if (nRetValue == 0)
+		{
+			FreeResources();
+			return BTNST_INVALIDRESOURCE;
+		} // if
+		m_csBitmaps[2].dwWidth = (DWORD)csBitmapSize.bmWidth;
+		m_csBitmaps[2].dwHeight = (DWORD)csBitmapSize.bmHeight;
+
+		// Create mask for bitmap Out
+		m_csBitmaps[2].hMask = CreateBitmapMask(hBitmapDisable, m_csBitmaps[2].dwWidth, m_csBitmaps[2].dwHeight, crTransColorDisable);
+		if (m_csBitmaps[2].hMask == NULL)
+		{
+			FreeResources();
+			return BTNST_FAILEDMASK;
 		} // if
 	} // if
 

@@ -283,7 +283,7 @@ private:
 #pragma pack()
 
 	STRUCT_ICONS	m_csIcons[2];
-	STRUCT_BITMAPS	m_csBitmaps[2];
+	STRUCT_BITMAPS	m_csBitmaps[3];
 
 	STRUCT_CALLBACK	m_csCallbacks;
 
